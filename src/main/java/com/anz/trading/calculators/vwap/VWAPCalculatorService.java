@@ -9,9 +9,18 @@ public class VWAPCalculatorService {
         vwapCalculator = new VWAPCalculator();
     }
 
-    // Simulate receiving a price update
-    public void processPriceUpdate(double price, long volume, String currencyPair) {
-        LocalDateTime timestamp = LocalDateTime.now(); // Assume real-time updates
+    // Simulate receiving a price update from TradeGenerator
+    public void simulateTradeUpdate() {
+        // Generate a random trade using the TradeGenerator
+        Trade trade = TradeGenerator.generateRandomTrade();
+
+        // Extract details from the generated trade
+        double price = trade.getPrice();
+        long volume = trade.getVolume();
+        String currencyPair = trade.getCurrencyPair();
+        LocalDateTime timestamp = trade.getTimestamp(); // Use the timestamp from the Trade object
+
+        // Process the trade using the VWAPCalculator
         vwapCalculator.processData(price, volume, timestamp, currencyPair);
     }
 

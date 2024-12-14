@@ -19,12 +19,13 @@ public class TradeGenerator {
 
     // Generate a random trade
     public static Trade generateRandomTrade() {
-        // Select a random currency pair
-        String currencyPair = CURRENCY_PAIRS[RANDOM.nextInt(CURRENCY_PAIRS.length)];
 
-        // Find the index of the selected currency pair
-        int index = getCurrencyPairIndex(currencyPair);
+        // Randomly generates an index between 0 and the length of the ccy pairs array - 1
+        int index = RANDOM.nextInt(CURRENCY_PAIRS.length);
 
+        // Returns corresponding ccy pair
+    	String currencyPair = CURRENCY_PAIRS[index];
+        
         // Get the mean and standard deviation for this currency pair
         double mean = CURRENCY_PAIR_STATS[index][0];
         double standardDeviation = CURRENCY_PAIR_STATS[index][1];
@@ -35,15 +36,5 @@ public class TradeGenerator {
         LocalDateTime timestamp = LocalDateTime.now();
 
         return new Trade(price, volume, timestamp, currencyPair);
-    }
-
-    // Get the index of a given currency pair
-    private static int getCurrencyPairIndex(String currencyPair) {
-        for (int i = 0; i < CURRENCY_PAIRS.length; i++) {
-            if (CURRENCY_PAIRS[i].equals(currencyPair)) {
-                return i;
-            }
-        }
-        throw new IllegalArgumentException("Currency pair not found: " + currencyPair);
     }
 }
