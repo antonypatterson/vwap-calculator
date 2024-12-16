@@ -1,27 +1,30 @@
 package com.anz.trading.calculators.vwap;
 
-import java.time.LocalDateTime;
-
 public class VWAPCalculatorService {
     private final VWAPCalculator vwapCalculator;
+    private final TradeGenerator tradeGenerator;
 
-    public VWAPCalculatorService() {
+    public VWAPCalculatorService(TradeGenerator tradeGenerator) {
         vwapCalculator = new VWAPCalculator();
+        // Instantiates a tradeGenerator object with the default currency list as per
+        // Currency Pair Data object
+        this.tradeGenerator = (tradeGenerator != null) ? tradeGenerator : new TradeGenerator();
+    }
+    
+    // Constructor with CurrencyPairData to create TradeGenerator internally
+    public VWAPCalculatorService(CurrencyPairData currencyPairData) {
+        vwapCalculator = new VWAPCalculator();
+        // Create a new TradeGenerator using currencyPairData
+        this.tradeGenerator = new TradeGenerator(currencyPairData);
     }
 
     // Simulate receiving a price update from TradeGenerator
     public void simulateTradeUpdate() {
         // Generate a random trade using the TradeGenerator
-        Trade trade = TradeGenerator.generateRandomTrade();
-
-        // Extract details from the generated trade
-        double price = trade.getPrice();
-        long volume = trade.getVolume();
-        String currencyPair = trade.getCurrencyPair();
-        LocalDateTime timestamp = trade.getTimestamp(); // Use the timestamp from the Trade object
+        Trade trade = tradeGenerator.generateRandomTrade();
 
         // Process the trade using the VWAPCalculator
-        vwapCalculator.processData(price, volume, timestamp, currencyPair);
+        vwapCalculator.processData(trade);
     }
 
     // Get the VWAP for a specific currency pair

@@ -13,6 +13,8 @@ import com.anz.trading.calculators.vwap.Trade;
 
 public abstract class H2TradeDAO implements TradeDAO {
     protected final Connection connection;
+    
+    
 
     public H2TradeDAO(Connection connection) {
         this.connection = connection;
@@ -26,8 +28,30 @@ public abstract class H2TradeDAO implements TradeDAO {
                 "volume BIGINT, " +             
                 "timestamp TIMESTAMP, " +    
                 "currency_pair VARCHAR(10))";   
+
         try (Statement stmt = connection.createStatement()) {
             stmt.execute(createTableSQL);
+        }
+
+        // Create indexes on the columns used in the MERGE statement for faster lookups
+        String createIndexSQL = "CREATE INDEX IF NOT EXISTS idx_price ON trades(price)";
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute(createIndexSQL);
+        }
+
+        createIndexSQL = "CREATE INDEX IF NOT EXISTS idx_volume ON trades(volume)";
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute(createIndexSQL);
+        }
+
+        createIndexSQL = "CREATE INDEX IF NOT EXISTS idx_timestamp ON trades(timestamp)";
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute(createIndexSQL);
+        }
+
+        createIndexSQL = "CREATE INDEX IF NOT EXISTS idx_currency_pair ON trades(currency_pair)";
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute(createIndexSQL);
         }
     }
 

@@ -1,6 +1,5 @@
 package com.anz.trading.calculators.vwap;
 
-import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -9,10 +8,10 @@ public class VWAPCalculator {
     private final Map<String, VWAPData> dataMap = new ConcurrentHashMap<>();
 
     // Process incoming data
-    public void processData(double price, long volume, LocalDateTime timestamp, String currencyPair) {
+    public void processData(Trade trade) {
+    	String currencyPair = trade.getCurrencyPair();
         VWAPData vwapData = dataMap.computeIfAbsent(currencyPair, k -> new VWAPData());
-        Trade priceVolume = new Trade(price, volume, timestamp, currencyPair);
-        vwapData.addDataPoint(priceVolume);
+        vwapData.addDataPoint(trade);
     }
 
     // Get the VWAP for a specific currency pair

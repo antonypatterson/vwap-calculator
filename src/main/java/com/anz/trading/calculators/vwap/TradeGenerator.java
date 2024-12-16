@@ -4,21 +4,36 @@ import java.time.LocalDateTime;
 import java.util.Random;
 
 public class TradeGenerator {
-    private static final Random RANDOM = new Random();
+    private final Random random;
+    private final CurrencyPairData currencyPairData;
 
-    // Generate a random trade
-    public static Trade generateRandomTrade() {
-        // Randomly generates an index between 0 and the length of the ccy pairs array - 1
-        int index = RANDOM.nextInt(CurrencyPairData.CURRENCY_PAIRS.length);
+    // Constructor to inject CurrencyPairData and Random
+    public TradeGenerator(CurrencyPairData currencyPairData, Random random) {
+        this.currencyPairData = currencyPairData;
+        this.random = random;
+    }
+
+    // Overloaded constructor to use default Random
+    public TradeGenerator(CurrencyPairData currencyPairData) {
+        this(currencyPairData, new Random());
+    }
+
+    // Default constructor with default data and Random
+    public TradeGenerator() {
+        this(CurrencyPairData.createDefault(), new Random());
+    }
+
+    public Trade generateRandomTrade() {
+        int index = random.nextInt(currencyPairData.getCurrencyPairs().length);
 
         // Retrieve currency pair and corresponding stats
-        String currencyPair = CurrencyPairData.CURRENCY_PAIRS[index];
-        double mean = CurrencyPairData.CURRENCY_PAIR_STATS[index][0];
-        double standardDeviation = CurrencyPairData.CURRENCY_PAIR_STATS[index][1];
+        String currencyPair = currencyPairData.getCurrencyPairs()[index];
+        double mean = currencyPairData.getCurrencyPairStats()[index][0];
+        double standardDeviation = currencyPairData.getCurrencyPairStats()[index][1];
 
         // Generate price and volume
-        double price = mean + (RANDOM.nextGaussian() * standardDeviation);
-        long volume = 100 + RANDOM.nextInt(100000); // Random volume between 100 and 100,100
+        double price = mean + (random.nextGaussian() * standardDeviation);
+        long volume = 100 + random.nextInt(100000);
         LocalDateTime timestamp = LocalDateTime.now();
 
         return new Trade(price, volume, timestamp, currencyPair);

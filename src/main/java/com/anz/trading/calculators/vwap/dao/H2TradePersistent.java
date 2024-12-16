@@ -10,27 +10,39 @@ import com.anz.trading.calculators.vwap.Trade;
 
 public class H2TradePersistent extends H2TradeDAO {
 
+
 	public H2TradePersistent(Connection connection) {
         super(connection);
     }
 	
 	@Override
-    public void insertTradesFrom(List<Trade> trades) throws SQLException {
-        // Reordered to match Trade input order (price, volume, timestamp, currencyPair)
-        String insertSQL = "INSERT INTO trades (price, volume, timestamp, currency_pair) VALUES (?, ?, ?, ?)";
-        try (PreparedStatement pstmt = connection.prepareStatement(insertSQL)) {
-            for (Trade trade : trades) {
-                pstmt.setDouble(1, trade.getPrice());        // Set price
-                pstmt.setLong(2, trade.getVolume());         // Set volume
-                pstmt.setObject(3, trade.getTimestamp());    // Set timestamp (using setObject)
-                pstmt.setString(4, trade.getCurrencyPair()); // Set currency pair
-                pstmt.addBatch();  // Add to batch
-            }
-            pstmt.executeBatch();  // Execute the batch of inserts
-        } catch (SQLException e) {
-            e.printStackTrace();  // Handle exceptions properly
-        }
-    }
+	public void insertTradesFrom(List<Trade> trades) throws SQLException {
+	    String mergeSQL = "MERGE INTO trades AS target " +
+	                      "USING (VALUES (?, ?, ?, ?)) AS source(price, volume, timestamp, currency_pair) " +
+	                      "ON target.price = source.price " +
+	                      "AND target.volume = source.volume " +
+	                      "AND target.timestamp = source.timestamp " +
+	                      "AND target.currency_pair = source.currency_pair " +
+	                      "WHEN MATCHED THEN UPDATE SET target.price = source.price, " +
+	                      "target.volume = source.volume, " +
+	                      "target.timestamp = source.timestamp, " +
+	                      "target.currency_pair = source.currency_pair " +
+	                      "WHEN NOT MATCHED THEN INSERT (price, volume, timestamp, currency_pair) " +
+	                      "VALUES (source.price, source.volume, source.timestamp, source.currency_pair)";
+
+	    try (PreparedStatement pstmt = connection.prepareStatement(mergeSQL)) {
+	        for (Trade trade : trades) {
+	            pstmt.setDouble(1, trade.getPrice());        // Set price
+	            pstmt.setLong(2, trade.getVolume());         // Set volume
+	            pstmt.setObject(3, trade.getTimestamp());    // Set timestamp
+	            pstmt.setString(4, trade.getCurrencyPair()); // Set currency pair
+	            pstmt.addBatch();  // Add to batch
+	        }
+	        pstmt.executeBatch();  // Execute the batch of merges
+	    } catch (SQLException e) {
+	        e.printStackTrace();  // Handle exceptions properly
+	    } 
+	}
 	
 	@Override
     public void clearTrades() throws SQLException {
