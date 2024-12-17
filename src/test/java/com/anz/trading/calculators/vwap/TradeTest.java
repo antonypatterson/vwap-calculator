@@ -4,6 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Fairly trivial test file to ensure the constructors and getters 
+ * of Trade object are working as expected
+ */
 public class TradeTest {
 
     @Test

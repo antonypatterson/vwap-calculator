@@ -2,9 +2,12 @@ package com.anz.trading.calculators.vwap.dao;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 import com.anz.trading.calculators.vwap.Trade;
 
@@ -16,7 +19,7 @@ public class H2TradePersistent extends H2TradeDAO {
     }
 	
 	@Override
-	public void insertTradesFrom(List<Trade> trades) throws SQLException {
+	public void insertTradesFrom(Queue<Trade> trades) throws SQLException {
 	    String mergeSQL = "MERGE INTO trades AS target " +
 	                      "USING (VALUES (?, ?, ?, ?)) AS source(price, volume, timestamp, currency_pair) " +
 	                      "ON target.price = source.price " +
@@ -55,7 +58,12 @@ public class H2TradePersistent extends H2TradeDAO {
 		try (Statement stmt = connection.createStatement()) {
             stmt.execute("TRUNCATE TABLE trades");
         }		
-	}	
-	
+	}
+
+	@Override
+	public Queue<Trade> getAllTrades() throws SQLException {
+		throw new UnsupportedOperationException("Operation prohibited without time constraints as performing "
+				+ "this on persistent DB as an unfiltered query will likely crash the machine.");
+	}
 	
 }

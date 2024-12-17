@@ -6,8 +6,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 import com.anz.trading.calculators.vwap.Trade;
 
@@ -68,24 +68,24 @@ public abstract class H2TradeDAO implements TradeDAO {
         }
     }
     
-    public abstract void insertTradesFrom(List<Trade> trades) throws SQLException;    
-    
-    public abstract void clearTrades() throws SQLException;
-    
-    public abstract void deleteDB() throws SQLException;
-    
     @Override
-    public List<Trade> getAllTrades() throws SQLException {
-        List<Trade> trades = new ArrayList<>();
-        String selectSQL = "SELECT * FROM trades";
+    public Queue<Trade> getAllTrades(LocalDateTime startTime, LocalDateTime endTime, String currencyPair) throws SQLException {
+        Queue<Trade> trades = new ConcurrentLinkedDeque<>();
+        
+        // Updated SQL query to include currencyPair filter
+        String selectSQL = "SELECT * FROM trades WHERE timestamp BETWEEN ? AND ? AND currency_pair = ?";
+        
         try (PreparedStatement pstmt = connection.prepareStatement(selectSQL)) {
+            pstmt.setObject(1, startTime);  // Set the start time parameter
+            pstmt.setObject(2, endTime);    // Set the end time parameter
+            pstmt.setString(3, currencyPair); // Set the currency pair parameter
+            
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     // Map the result set to a Trade object
                     double price = rs.getDouble("price");
                     long volume = rs.getLong("volume");
                     LocalDateTime timestamp = rs.getObject("timestamp", LocalDateTime.class);
-                    String currencyPair = rs.getString("currency_pair");
 
                     Trade trade = new Trade(price, volume, timestamp, currencyPair);
                     trades.add(trade);
@@ -94,4 +94,12 @@ public abstract class H2TradeDAO implements TradeDAO {
         }
         return trades;
     }
+    
+    public abstract void insertTradesFrom(Queue<Trade> trades) throws SQLException;    
+    
+    public abstract void clearTrades() throws SQLException;
+    
+    public abstract void deleteDB() throws SQLException;
+    
+    public abstract Queue<Trade> getAllTrades() throws SQLException;
 }

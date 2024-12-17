@@ -1,8 +1,11 @@
 package com.anz.trading.calculators.vwap;
 
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 import com.anz.trading.calculators.vwap.dao.TradeDAO;
 
@@ -13,14 +16,13 @@ import com.anz.trading.calculators.vwap.dao.TradeDAO;
 public class TradeLogger {
     private final TradeDAO inMemoryDAO;
     private final TradeDAO persistentDAO;
-    private final List<Trade> tradeList; // In-memory list of trades used for testing cases
+    private final Queue<Trade> tradeList; // In-memory list of trades used for testing cases
     
-
-    public TradeLogger(TradeDAO inMemoryDAO, TradeDAO persistentDAO) {
+    public TradeLogger(TradeDAO inMemoryDAO, TradeDAO persistentDAO, long backupFrequency) {
         this.inMemoryDAO = inMemoryDAO;
         this.persistentDAO = persistentDAO;
-        this.tradeList = new ArrayList<>();
-
+        this.tradeList = new ConcurrentLinkedDeque<>();
+        
         try {
             inMemoryDAO.createTable();
             persistentDAO.createTable();
@@ -28,9 +30,92 @@ public class TradeLogger {
             throw new RuntimeException("Failed to initialize databases", e);
         }
     }
+    
+    /**
+     * Queries the persistent database, and restores
+     */
+    public void restoreOldTradesToQueue(VWAPCalculator vwapCalculator, 
+    		String currencyPair, long minutesToRestore, long minutesForVWAP) {
+        // Define the time range for restoration
+        VWAPData vwapData = vwapCalculator.getVWAPData(currencyPair);
+        
+        // Determine the start time for the query
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime rollingWindowStartTime = now.minusMinutes(minutesForVWAP + 1);
+        LocalDateTime restoreStartTime = rollingWindowStartTime.isAfter(vwapData.getLastRestoredDataTimestamp())
+                ? rollingWindowStartTime
+                : vwapData.getLastRestoredDataTimestamp();
+        LocalDateTime restoreEndTime = restoreStartTime.plusMinutes(minutesToRestore);
+
+        // Fetch trades from the persistent database based on the time range
+        Queue<Trade> tradesToRestore;
+        try {
+            tradesToRestore = persistentDAO.getAllTrades(restoreStartTime, restoreEndTime, currencyPair);
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to fetch trades from the database", e);
+        }
+
+        // Add the queue elements back into the vwapCalculator object
+        for (Trade trade : tradesToRestore) {
+        	vwapData.restoreDataPoint(trade);  // Or add the trade to VWAPCalculator
+        }
+        
+        vwapData.setLastRestore(LocalDateTime.now());
+
+        // Update the last restored data timestamp in VWAPData
+        if (!tradesToRestore.isEmpty()) {
+            // Use the timestamp of the most recent trade restored
+            Trade latestTrade = tradesToRestore.stream()
+                                              .max(Comparator.comparing(Trade::getTimestamp))
+                                              .orElseThrow();
+            vwapData.setLastRestoredDataTimestamp(latestTrade.getTimestamp());            
+        }
+    }
+    
+    
+    /**
+     * Grabs all trades from the newest queue within each VWAPData object, clears it 
+     * from memory and then writes to the database
+     */
+    public void loadNewestToDB(VWAPCalculator vwapCalculator, String currencyPair) {
+    	// Define the time range for reloading data
+        VWAPData vwapData = vwapCalculator.getVWAPData(currencyPair);
+    	
+    	Queue<Trade> combinedQueue = vwapData.getNewestQueueAndClear();
+    	try {
+    		persistentDAO.insertTradesFrom(combinedQueue);
+    		// Write the last backup timestamp to the VWAP object of that currency pair
+    		vwapData.setLastBackup(LocalDateTime.now());
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to dump data to persistent DB", e);
+        }     	
+    }
+    
+    /**
+     * ONLY to be used as a last resort when memory is close to completely full
+     */
+    public void emergencyDumpToDB(VWAPCalculator vwapCalculator) {
+		Map<String, VWAPData> dataMap = vwapCalculator.getDataMap();
+	    Queue<Trade> snapshot;
+	    Queue<Trade> combinedQueue = new ConcurrentLinkedDeque<Trade>();
+	    
+	    for (Map.Entry<String, VWAPData> entry : dataMap.entrySet()) {
+	        VWAPData vwapData = entry.getValue();
+	        snapshot = vwapData.getNewestQueueAndClear();
+	        combinedQueue.addAll(snapshot);
+	    }    
+
+	    // Now write to the database
+	    try {
+	        persistentDAO.insertTradesFrom(combinedQueue);
+	    } catch (SQLException e) {
+	        throw new RuntimeException("Failed to dump data to persistent DB", e);
+	    }    	
+    }
+       
 
     /**
-     * Logs a trade into the in-memory database.
+     * Logs a single trade into the in-memory database.
      * @param trade The trade to log.
      */
     public void logTrade(Trade trade) {
@@ -65,14 +150,13 @@ public class TradeLogger {
         }
     }
     
-    // Append a trade to the in-memory list of trades (used for testing)
+    // Optional method should you choose to append each individual trade to separate list
     public void appendToList(Trade trade) {
         tradeList.add(trade); // Add trade to the in-memory list
     }
     
     // Get the list of trades (for testing purposes)
-    public List<Trade> getTradeList() {
-        return new ArrayList<>(tradeList); // Return a copy of the list to avoid external modifications
-    }    
-    
+    public Queue<Trade> getTradeList() {
+        return new ConcurrentLinkedDeque<>(tradeList); // Return a copy of the list to avoid external modifications
+    }
 }
