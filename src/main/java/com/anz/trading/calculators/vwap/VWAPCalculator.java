@@ -10,10 +10,12 @@ public class VWAPCalculator {
 
 	private final ExecutorService executorService;
     private final Map<String, VWAPData> dataMap = new ConcurrentHashMap<>();
+    private final long minutesForVWAP;
     
-    public VWAPCalculator(byte numberOfThreads) {
+    public VWAPCalculator(byte numberOfThreads, long minutesForVWAP) {
         // Create a thread pool for managing concurrent tasks
         executorService = Executors.newFixedThreadPool(numberOfThreads);
+        this.minutesForVWAP = minutesForVWAP;
     }
 
     // Process incoming data
@@ -21,7 +23,7 @@ public class VWAPCalculator {
     	String currencyPair = trade.getCurrencyPair();
     	// Submit the task of adding data point to the executor
         executorService.submit(() -> {
-            VWAPData vwapData = dataMap.computeIfAbsent(currencyPair, k -> new VWAPData());
+            VWAPData vwapData = dataMap.computeIfAbsent(currencyPair, k -> new VWAPData(minutesForVWAP));
             vwapData.addDataPoint(trade);
         });
     }
@@ -32,7 +34,7 @@ public class VWAPCalculator {
             String currencyPair = trade.getCurrencyPair();
             
             // Shouldn't ever need new VWAPData but leaving there to avoid any weird errors
-            VWAPData vwapData = dataMap.computeIfAbsent(currencyPair, k -> new VWAPData());
+            VWAPData vwapData = dataMap.computeIfAbsent(currencyPair, k -> new VWAPData(minutesForVWAP));
             
             // Add the trade data point to the VWAPData object
             vwapData.addDataPoint(trade);

@@ -8,16 +8,16 @@ public class VWAPCalculatorService {
     private final TradeGenerator tradeGenerator;
     private byte nbrThreads = 4;
 
-    public VWAPCalculatorService(TradeGenerator tradeGenerator) {
-        vwapCalculator = new VWAPCalculator(nbrThreads);
+    public VWAPCalculatorService(TradeGenerator tradeGenerator, long minutesForVWAP) {
+        vwapCalculator = new VWAPCalculator(nbrThreads, minutesForVWAP);
         // Instantiates a tradeGenerator object with the default currency list as per
         // Currency Pair Data object
         this.tradeGenerator = (tradeGenerator != null) ? tradeGenerator : new TradeGenerator();
     }
     
     // Constructor with CurrencyPairData to create TradeGenerator internally
-    public VWAPCalculatorService(CurrencyPairData currencyPairData) {
-        vwapCalculator = new VWAPCalculator(nbrThreads);
+    public VWAPCalculatorService(CurrencyPairData currencyPairData, long minutesForVWAP) {
+        vwapCalculator = new VWAPCalculator(nbrThreads, minutesForVWAP);
         
         // Create a new TradeGenerator using currencyPairData
         this.tradeGenerator = new TradeGenerator(currencyPairData);

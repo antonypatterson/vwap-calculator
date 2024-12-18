@@ -64,11 +64,10 @@ public class TradeLogger {
 
         // Update the last restored data timestamp in VWAPData
         if (!tradesToRestore.isEmpty()) {
-            // Use the timestamp of the most recent trade restored
             Trade latestTrade = tradesToRestore.stream()
                                               .max(Comparator.comparing(Trade::getTimestamp))
                                               .orElseThrow();
-            vwapData.setLastRestoredDataTimestamp(latestTrade.getTimestamp());            
+            vwapData.setLastRestoredDataTimestamp(latestTrade.getTimestamp());
         }
     }
     
@@ -77,11 +76,17 @@ public class TradeLogger {
      * Grabs all trades from the newest queue within each VWAPData object, clears it 
      * from memory and then writes to the database
      */
-    public void loadNewestToDB(VWAPCalculator vwapCalculator, String currencyPair) {
+    public void loadNewestToDB(VWAPCalculator vwapCalculator, String currencyPair, boolean clearMemory) {
     	// Define the time range for reloading data
         VWAPData vwapData = vwapCalculator.getVWAPData(currencyPair);
     	
-    	Queue<Trade> combinedQueue = vwapData.getNewestQueueAndClear();
+        Queue<Trade> combinedQueue;
+    	if (clearMemory) {
+        	combinedQueue = vwapData.getNewestQueueAndClear();
+        } else {
+        	combinedQueue = vwapData.getNewestQueue();
+        }
+    	
     	try {
     		persistentDAO.insertTradesFrom(combinedQueue);
     		// Write the last backup timestamp to the VWAP object of that currency pair
