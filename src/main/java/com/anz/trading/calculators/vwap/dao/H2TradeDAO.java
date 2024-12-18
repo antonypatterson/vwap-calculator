@@ -34,24 +34,36 @@ public abstract class H2TradeDAO implements TradeDAO {
         }
 
         // Create indexes on the columns used in the MERGE statement for faster lookups
-        String createIndexSQL = "CREATE INDEX IF NOT EXISTS idx_price ON trades(price)";
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute(createIndexSQL);
-        }
+        createIndexIfNotExists("idx_price", "price");
+        createIndexIfNotExists("idx_volume", "volume");
+        createIndexIfNotExists("idx_timestamp", "timestamp");
+        createIndexIfNotExists("idx_currency_pair", "currency_pair");
+    }
+    
+    private void createIndexIfNotExists(String indexName, String columnName) throws SQLException {
+        String checkIndexSQL = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.INDEXES " +
+                               "WHERE UPPER(TABLE_NAME) = 'TRADES' AND UPPER(INDEX_NAME) = UPPER(?)";
 
-        createIndexSQL = "CREATE INDEX IF NOT EXISTS idx_volume ON trades(volume)";
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute(createIndexSQL);
-        }
+        try (PreparedStatement stmt = connection.prepareStatement(checkIndexSQL)) {
+            if (stmt == null) {
+                System.err.println("PreparedStatement is null, check your connection or query.");
+                return; // Exit if PreparedStatement could not be created
+            }
 
-        createIndexSQL = "CREATE INDEX IF NOT EXISTS idx_timestamp ON trades(timestamp)";
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute(createIndexSQL);
-        }
+            stmt.setString(1, indexName);
 
-        createIndexSQL = "CREATE INDEX IF NOT EXISTS idx_currency_pair ON trades(currency_pair)";
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute(createIndexSQL);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next() && rs.getInt(1) == 0) {
+                    // Index doesn't exist, create it
+                    String createIndexSQL = "CREATE INDEX " + indexName + " ON trades(" + columnName + ")";
+                    try (Statement createStmt = connection.createStatement()) {
+                        createStmt.execute(createIndexSQL);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error checking or creating index: " + e.getMessage());
+            throw e; // Rethrow to propagate the error
         }
     }
 

@@ -17,30 +17,32 @@ public class VWAPCalculatorTest {
     @BeforeEach
     public void setUp() {
     	byte nbrThreads = 1; //for trivial testing
-        vwapCalculator = new VWAPCalculator(nbrThreads);
+    	long minutesForVWAP = 60;
+        vwapCalculator = new VWAPCalculator(nbrThreads, minutesForVWAP);
     }
 
     @Test
-    public void testProcessData_SingleCurrencyPair_MultipleTrades() {
+    public void testProcessData_SingleCurrencyPair_MultipleTrades() throws InterruptedException {
         // Arrange
         LocalDateTime now = LocalDateTime.now();
-        Trade trade1 = new Trade(100.0, 200, now, "EUR/USD");
-        Trade trade2 = new Trade(101.0, 300, now, "EUR/USD");
+        Trade trade1 = new Trade(1.0, 200, now, "EUR/USD");
+        Trade trade2 = new Trade(1.01, 300, now, "EUR/USD");
 
         // Act
         vwapCalculator.processData(trade1);
         vwapCalculator.processData(trade2);
+        
         double result = vwapCalculator.getVWAP("EUR/USD");
 
-        // Calculate Expected VWAP: (100*200 + 101*300) / (200 + 300) = 100.6
-        double expectedVWAP = (100.0 * 200 + 101.0 * 300) / (200 + 300);
+        // Calculate Expected VWAP
+        double expectedVWAP = (1.0 * 200 + 1.01 * 300) / (200 + 300);
         
         // Assert
         assertEquals(expectedVWAP, result, 0.0001, "VWAP for EUR/USD is incorrect");
     }
 
     @Test
-    public void testProcessData_MultipleCurrencyPairs() {
+    public void testProcessData_MultipleCurrencyPairs() throws InterruptedException {
         // Arrange
         LocalDateTime now = LocalDateTime.now();
 

@@ -26,9 +26,16 @@ public class H2TradeMemory extends H2TradeDAO {
 	
 	@Override
     public void clearTrades() throws SQLException {
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute("TRUNCATE TABLE trades");
-        }
+		String checkTableSQL = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'TRADES'";
+	    try (PreparedStatement pstmt = connection.prepareStatement(checkTableSQL);
+	         ResultSet rs = pstmt.executeQuery()) {
+	        if (rs.next() && rs.getInt(1) > 0) {
+	            // Table exists, truncate it
+	            try (Statement stmt = connection.createStatement()) {
+	                stmt.execute("TRUNCATE TABLE TRADES");
+	            }
+	        }
+	    }
     }
 
 	@Override

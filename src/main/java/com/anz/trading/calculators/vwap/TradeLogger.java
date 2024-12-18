@@ -18,17 +18,25 @@ public class TradeLogger {
     private final TradeDAO persistentDAO;
     private final Queue<Trade> tradeList; // In-memory list of trades used for testing cases
     
-    public TradeLogger(TradeDAO inMemoryDAO, TradeDAO persistentDAO, long backupFrequency) {
+    // Constructor for both DAOs
+    public TradeLogger(TradeDAO inMemoryDAO, TradeDAO persistentDAO) {
         this.inMemoryDAO = inMemoryDAO;
         this.persistentDAO = persistentDAO;
         this.tradeList = new ConcurrentLinkedDeque<>();
-        
+
         try {
-            inMemoryDAO.createTable();
+            if (inMemoryDAO != null) {
+                inMemoryDAO.createTable();
+            }
             persistentDAO.createTable();
         } catch (SQLException e) {
             throw new RuntimeException("Failed to initialize databases", e);
         }
+    }
+
+    // Constructor for persistentDAO only
+    public TradeLogger(TradeDAO persistentDAO) {
+        this(null, persistentDAO);
     }
     
     /**

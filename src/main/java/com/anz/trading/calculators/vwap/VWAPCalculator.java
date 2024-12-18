@@ -2,6 +2,8 @@ package com.anz.trading.calculators.vwap;
 
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -10,6 +12,7 @@ public class VWAPCalculator {
 
 	private final ExecutorService executorService;
     private final Map<String, VWAPData> dataMap = new ConcurrentHashMap<>();
+    private final Map<String, CompletableFuture<Void>> taskCompletionMap = new ConcurrentHashMap<>();
     private final long minutesForVWAP;
     
     public VWAPCalculator(byte numberOfThreads, long minutesForVWAP) {
@@ -21,11 +24,31 @@ public class VWAPCalculator {
     // Process incoming data
     public void processData(Trade trade) {
     	String currencyPair = trade.getCurrencyPair();
+    	CompletableFuture<Void> taskFuture = new CompletableFuture<>();
     	// Submit the task of adding data point to the executor
-        executorService.submit(() -> {
-            VWAPData vwapData = dataMap.computeIfAbsent(currencyPair, k -> new VWAPData(minutesForVWAP));
-            vwapData.addDataPoint(trade);
+    	executorService.submit(() -> {
+            try {
+                VWAPData vwapData = dataMap.computeIfAbsent(currencyPair, k -> new VWAPData(minutesForVWAP));
+                vwapData.addDataPoint(trade);
+            } finally {
+                // Mark this task as completed
+                taskFuture.complete(null);
+            }
         });
+    	
+    	// Replace or merge task futures for the same currency pair
+        taskCompletionMap.merge(
+            currencyPair,
+            taskFuture,
+            (existingFuture, newFuture) -> existingFuture.thenCombine(newFuture, (a, b) -> null)
+        );
+    }
+    
+    // Used to test the cases where the executor isn't working as expected
+    public void processDataWithoutExecutor(Trade trade) {
+    	String currencyPair = trade.getCurrencyPair();
+        VWAPData vwapData = dataMap.computeIfAbsent(currencyPair, k -> new VWAPData(minutesForVWAP));
+        vwapData.addDataPoint(trade);
     }
     
     public void restoreData(Queue<Trade> trades) {
@@ -43,6 +66,17 @@ public class VWAPCalculator {
 
     // Get the VWAP for a specific currency pair
     public double getVWAP(String currencyPair) {
+    	CompletableFuture<Void> taskFuture = taskCompletionMap.get(currencyPair);
+
+        // Wait for all tasks related to this currency pair to complete
+        if (taskFuture != null) {
+            try {
+                taskFuture.join();
+            } catch (CompletionException e) {
+                throw new RuntimeException("Error while waiting for VWAP calculation tasks", e);
+            }
+        }
+
         VWAPData vwapData = dataMap.get(currencyPair);
         return vwapData == null ? 0 : vwapData.getVWAP();
     }

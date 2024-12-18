@@ -15,14 +15,20 @@ class VWAPCalculatorServiceTest {
 
     private TradeGenerator mockTradeGenerator;
     private VWAPCalculatorService vwapCalculatorService;
+    
+    private 
 
     @BeforeEach
     void setUp() {
         // Create a mock of TradeGenerator
         mockTradeGenerator = Mockito.mock(TradeGenerator.class);
+        long minutesForVWAP = 60;
+        int tradeThresholdPerPair = 50;
+        int totalTradeThreshold = 1000;
 
         // Initialize the service with the mocked TradeGenerator
-        vwapCalculatorService = new VWAPCalculatorService(mockTradeGenerator);
+        vwapCalculatorService = new VWAPCalculatorService(mockTradeGenerator, minutesForVWAP,
+        		tradeThresholdPerPair, totalTradeThreshold);
     }
 
     @Test
@@ -39,7 +45,8 @@ class VWAPCalculatorServiceTest {
         when(mockTradeGenerator.generateRandomTrade()).thenReturn(mockTrade);
 
         // Act: Simulate a trade update
-        vwapCalculatorService.simulateTradeUpdate();
+        boolean manageResourceFlag = false;
+        vwapCalculatorService.simulateTradeUpdate(manageResourceFlag);
 
         // Retrieve VWAP for "AUD/USD"
         double vwap = vwapCalculatorService.getVWAP("AUD/USD");
@@ -65,9 +72,10 @@ class VWAPCalculatorServiceTest {
             .thenReturn(mockTrades.get(2)); // Third trade
 
         // Act: Simulate 3 trade updates
-        vwapCalculatorService.simulateTradeUpdate(); // Process first trade
-        vwapCalculatorService.simulateTradeUpdate(); // Process second trade
-        vwapCalculatorService.simulateTradeUpdate(); // Process third trade
+        boolean manageResourceFlag = false;
+        vwapCalculatorService.simulateTradeUpdate(manageResourceFlag); // Process first trade
+        vwapCalculatorService.simulateTradeUpdate(manageResourceFlag); // Process second trade
+        vwapCalculatorService.simulateTradeUpdate(manageResourceFlag); // Process third trade
 
         // Calculate the expected VWAP manually
         double totalPriceVolume = (0.760 * 1000) + (0.770 * 2000) + (0.780 * 3000);
@@ -98,9 +106,10 @@ class VWAPCalculatorServiceTest {
             .thenReturn(mockTrades.get(2));
 
         // Act: Simulate 3 trade updates
-        vwapCalculatorService.simulateTradeUpdate();
-        vwapCalculatorService.simulateTradeUpdate(); 
-        vwapCalculatorService.simulateTradeUpdate();
+        boolean manageResourceFlag = false;
+        vwapCalculatorService.simulateTradeUpdate(manageResourceFlag);
+        vwapCalculatorService.simulateTradeUpdate(manageResourceFlag); 
+        vwapCalculatorService.simulateTradeUpdate(manageResourceFlag);
 
         // Calculate the expected VWAP manually (excluding the first trade)
         double totalPriceVolume = (0.770 * 2000) + (0.780 * 3000);
