@@ -17,10 +17,13 @@ public class TradeResourceManager {
     private TradeLogger tradelogger;
     private int tradeThresholdPerPair;
     private int totalTradeThreshold;
+    private long minutesToRestore;
+    private int totalTradesPastHour = 0;
     
     // Tracking variables for special threshold behavior
     private final double lowestPercentageThreshold = 0.4;
     private LocalDateTime lastBreachTime = LocalDateTime.MIN; // Initially set to the smallest possible time
+    private LocalDateTime lastCcyPairBackedUpTime = LocalDateTime.MIN;
 
     public TradeResourceManager(VWAPCalculator vwapCalculator, int tradeThresholdPerPair, int totalTradeThreshold) {
         this.vwapCalculator = vwapCalculator;
@@ -46,8 +49,8 @@ public class TradeResourceManager {
         }
     }
 
-    public void manageResources(long minutesForVWAP) {
-        int totalTrades = 0;
+    public synchronized String manageResources(long minutesForVWAP) {
+        int totalTradesInMemory = 0;
         int newTradesToDB;
         int oldQueueSizeBeforeRestore;
         int oldQueueSizeAfterRestore;
@@ -64,15 +67,9 @@ public class TradeResourceManager {
         	newTradesToDB = vwapData.getNewestQueueSize();
         	oldQueueSizeBeforeRestore = vwapData.getOldQueueSize();
             tradeCount = vwapData.getCombinedQueueSize(); // Get number of trades for this pair
-            totalTrades += tradeCount;
+            totalTradesInMemory += tradeCount;
             LocalDateTime lastBackup = vwapData.getLastBackup();
             
-            // Track max trade count for any currency pair
-            if (tradeCount > maxTradeCount) {
-                maxTradeCount = tradeCount;
-                maxTradeCurrencyPair = currencyPair;
-            }
-
             // Check if we need to write or restore for this currency pair
             long frequencyOfBackUp = (long) (minutesForVWAP/2 - 1);
             boolean clearMemory;
@@ -81,16 +78,16 @@ public class TradeResourceManager {
             				LocalDateTime.now().isBefore(lastBreachTime.plusMinutes(minutesForVWAP + 1)))) {
             	clearMemory = true;
             	tradelogger.loadNewestToDB(vwapCalculator, currencyPair, clearMemory);
-            	totalTrades -= newTradesToDB; // cancel out increment if moved to DB
+            	totalTradesInMemory -= newTradesToDB; // cancel out increment if moved to DB
+            	tradeCount -= newTradesToDB;
+            	lastCcyPairBackedUpTime = LocalDateTime.now();
             } else if (LocalDateTime.now().isAfter(lastBackup.plusMinutes(minutesForVWAP - 1)) &&
             		LocalDateTime.now().isAfter(lastBreachTime.plusMinutes(minutesForVWAP + 1))) {
             	// Only when last backup more than 59 mins ago and latest breach more than 61 mins ago
             	clearMemory = false;
             	tradelogger.loadNewestToDB(vwapCalculator, currencyPair, clearMemory);
-            }
+            }        
             
-            // Determine the minutes to restore based on trade count
-            long minutesToRestore = adjustRestoreFrequency(tradeCount, minutesForVWAP);
 
             // Restore old trades if necessary
             LocalDateTime lastRestoreTimeStamp = vwapData.getLastRestoredDataTimestamp();
@@ -98,31 +95,47 @@ public class TradeResourceManager {
             if (shouldRestoreTrades(now, lastRestoreTimeStamp, minutesToRestore)) {
             	tradelogger.restoreOldTradesToQueue(vwapCalculator, currencyPair, minutesToRestore, minutesForVWAP);
             	oldQueueSizeAfterRestore = vwapData.getOldQueueSize();
-            	totalTrades += (oldQueueSizeAfterRestore - oldQueueSizeBeforeRestore);
+            	totalTradesInMemory += (oldQueueSizeAfterRestore - oldQueueSizeBeforeRestore);
+            	tradeCount += (oldQueueSizeAfterRestore - oldQueueSizeBeforeRestore);
+            }
+            
+            // Track max trade count for any currency pair after additions/removals are processed
+            if (tradeCount > maxTradeCount) {
+                maxTradeCount = tradeCount;
+                maxTradeCurrencyPair = currencyPair;
             }
         }
         
-        // Log overall trade volume and relevant metrics
-        double totalTradePercentage = (double) ((totalTrades / totalTradeThreshold) * 100);
-        double maxCcyTradePercentage = (double) ((maxTradeCount / totalTrades) * 100);
+        // Log overall trade volume and relevant metrics       
+        //double totalTradesInMemoryPct = ((double) totalTradesInMemory / totalTradeThreshold) * 100;
+        double totalTradesLastHourPct = ((double) totalTradesPastHour / totalTradeThreshold) * 100;
+        double maxCcyTradePercentage = ((double) maxTradeCount / totalTradesPastHour) * 100;
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
         String formattedDateTime = LocalDateTime.now().format(formatter);
-        
+               
         System.out.println("Resource Query at " + formattedDateTime);
         System.out.println("Total Trade Limit: " + totalTradeThreshold);
-        System.out.println("Total Trade Counter: " + totalTrades);
-        System.out.println("Percentage of Total Trade Limit: " + String.format("%.2f", totalTradePercentage) + "%");
+        System.out.println("Total Trade Counter (memory): " + totalTradesInMemory);
+        System.out.println("Total Trade Counter (last " + minutesForVWAP + " minutes): " + totalTradesPastHour);
+        System.out.println("Percentage of Total Trade Limit: " + String.format("%.2f", totalTradesLastHourPct) + "%");
         System.out.println("Maximum Currency Pair: " + maxTradeCurrencyPair 
                 + " | Max Trade Count: " + maxTradeCount 
                 + " (" + String.format("%.2f", maxCcyTradePercentage) + "% of Total Trade Count)");
-
-        // Check overall trade volume threshold
-        if (totalTrades >= totalTradeThreshold) {
+        
+        System.out.println("Current Threshold per Pair: " + tradeThresholdPerPair);
+        System.out.println("Current restore frequency: " + minutesToRestore);
+        
+        // Check overall trade volume threshold over last hour
+        if (totalTradesInMemory >= totalTradeThreshold) {
             System.out.println("Total trade threshold exceeded. Triggering database writes...");
-            tradelogger.emergencyDumpToDB(vwapCalculator);
+            int emergencyTradeDump = tradelogger.emergencyDumpToDB(vwapCalculator);
+            totalTradesInMemory -= emergencyTradeDump;
         } else { //re-adjust the allowed trade threshold per pair before the backup trigger is scheduled
-        	tradeThresholdPerPair = adjustTradeThresholdPerPair(totalTrades);
+            minutesToRestore = adjustRestoreFrequency(totalTradesPastHour, minutesForVWAP);
         }
+        
+        // Finally, return the currency pair with the current maximum trade count
+        return maxTradeCurrencyPair;
     }
 
     private boolean shouldRestoreTrades(LocalDateTime now, LocalDateTime lastRestoreTimeStamp, long minutesToRestore) {
@@ -136,8 +149,9 @@ public class TradeResourceManager {
     }
     
     // Method to dynamically adjust the trade threshold per pair based on total trade usage
-    public int adjustTradeThresholdPerPair(int totalTrades) {
-        double usagePercentage = (double) totalTrades / totalTradeThreshold;
+    // Currently unused as using fixed 5% in current implementation
+    public int adjustTradeThresholdPerPair(int tradeCount) {
+        double usagePercentage = (double) tradeCount / totalTradeThreshold;
         
         if (usagePercentage >= lowestPercentageThreshold) {
         	lastBreachTime = LocalDateTime.now();
@@ -163,9 +177,11 @@ public class TradeResourceManager {
         
         long result;
         // Check the special condition for restoring frequency
+        // Only if lower threshold not breached and NOT a single currency pair backed up
         if (usagePercentage < lowestPercentageThreshold && 
             lastBreachTime != null && 
-            lastBreachTime.isBefore(LocalDateTime.now().minusMinutes(minutesForVWAP + 1))) {
+            lastBreachTime.isBefore(LocalDateTime.now().minusMinutes(minutesForVWAP + 1)) &&
+            lastCcyPairBackedUpTime.isBefore(LocalDateTime.now().minusMinutes(minutesForVWAP + 1))) {
         	result = 20000;  // ~ 13 days, negligible frequency       
         } else if (usagePercentage < 0.4) {
             result = Math.max((long) (minutesForVWAP * 0.483333333), 1);
@@ -193,5 +209,17 @@ public class TradeResourceManager {
     // Again only for testing
     public void setLastBreachTime(LocalDateTime lastBreachTime) {
     	this.lastBreachTime = lastBreachTime;
+    }
+    
+    public int getTradeThresholdPerPair() {
+    	return tradeThresholdPerPair;
+    }
+    
+    public long getRestoreFrequency() {
+    	return minutesToRestore;
+    }
+    
+    public synchronized void adjustTradesInPastHour(int netTradeAdjustment)  {
+    	totalTradesPastHour += netTradeAdjustment;
     }
 }

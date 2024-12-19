@@ -26,7 +26,8 @@ public class VWAPData {
     }
 
     // Add new data point and maintain the 1-hour window
-    public synchronized void addDataPoint(Trade trade) {
+    public synchronized int addDataPoint(Trade trade) {
+    	int nbrTradesTrimmed = 0;
     	
         // Remove old data points that are older than 1 hour from the current timestamp
         LocalDateTime currentTime = trade.getTimestamp();
@@ -36,6 +37,7 @@ public class VWAPData {
             Trade oldest = tradeQueueNewest.poll();
             sumPriceVolume -= oldest.getPrice() * oldest.getVolume();
             sumVolume -= oldest.getVolume();
+            nbrTradesTrimmed++;
         }
         // 2nd while loop to remove oldest trades from old Queue and adjust numerator/denominator values
         while (!tradeQueueOld.isEmpty() && 
@@ -43,12 +45,15 @@ public class VWAPData {
             Trade oldest = tradeQueueOld.poll();
             sumPriceVolume -= oldest.getPrice() * oldest.getVolume();
             sumVolume -= oldest.getVolume();
+            nbrTradesTrimmed++;
         }     
 
         // Add the new data point
         tradeQueueNewest.add(trade);
         sumPriceVolume += trade.getPrice() * trade.getVolume();
         sumVolume += trade.getVolume();
+        
+        return nbrTradesTrimmed;
     }
     
     // Computationally efficient way to add back to the old queue without performing any other operations
@@ -79,48 +84,48 @@ public class VWAPData {
     }
     
     // Helper methods
-    public int getNewestQueueSize() {
+    public synchronized int getNewestQueueSize() {
         return tradeQueueNewest.size();
     }
     
-    public int getOldQueueSize() {
+    public synchronized int getOldQueueSize() {
         return tradeQueueOld.size();
     }
     
-    public int getCombinedQueueSize() {
+    public synchronized int getCombinedQueueSize() {
     	return tradeQueueNewest.size() + tradeQueueOld.size();
     }
     
     // Make getters of the queue immutable as they are used for the purpose of snapshotting
-    public Queue<Trade> getNewestQueue() {
+    public synchronized Queue<Trade> getNewestQueue() {
     	return new ConcurrentLinkedDeque<>(tradeQueueNewest);
     }
 
-    public Queue<Trade> getOldQueue() {
+    public synchronized Queue<Trade> getOldQueue() {
         return new ConcurrentLinkedDeque<>(tradeQueueOld);
     }
 
-	public LocalDateTime getLastBackup() {
+	public synchronized LocalDateTime getLastBackup() {
 		return lastBackup;
 	}
 
-	public void setLastBackup(LocalDateTime lastBackup) {
+	public synchronized void setLastBackup(LocalDateTime lastBackup) {
 		this.lastBackup = lastBackup;
 	}
 
-	public LocalDateTime getLastRestore() {
+	public synchronized LocalDateTime getLastRestore() {
 		return lastRestore;
 	}
 
-	public void setLastRestore(LocalDateTime lastRestore) {
+	public synchronized void setLastRestore(LocalDateTime lastRestore) {
 		this.lastRestore = lastRestore;
 	}
 
-	public LocalDateTime getLastRestoredDataTimestamp() {
+	public synchronized LocalDateTime getLastRestoredDataTimestamp() {
 		return lastRestoredDataTimestamp;
 	}
 
-	public void setLastRestoredDataTimestamp(LocalDateTime lastRestoredDataTimestamp) {
+	public synchronized void setLastRestoredDataTimestamp(LocalDateTime lastRestoredDataTimestamp) {
 		this.lastRestoredDataTimestamp = lastRestoredDataTimestamp;
 	}
 }

@@ -47,6 +47,7 @@
 	        <artifactId>commons-collections4</artifactId>
 	        <version>4.4</version>
         </dependency>
+        <!-- For Simulating number of trading updates per second -->
         <dependency>
 		    <groupId>com.google.guava</groupId>
 		    <artifactId>guava</artifactId>

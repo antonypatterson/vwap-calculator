@@ -104,7 +104,7 @@ class TradeResourceManagerTest {
         when(mockVWAPData.getCombinedQueueSize()).thenReturn(50); // Below trade threshold
         when(mockVWAPData.getNewestQueueSize()).thenReturn(20);
         when(mockVWAPData.getOldQueueSize()).thenReturn(30);
-        when(mockVWAPData.getLastBackup()).thenReturn(LocalDateTime.now().minusMinutes(30));
+        when(mockVWAPData.getLastBackup()).thenReturn(LocalDateTime.now().minusMinutes(61));
         when(mockVWAPData.getLastRestoredDataTimestamp()).thenReturn(LocalDateTime.now().minusMinutes(70)); // Ensures shouldRestoreTrades == true
 
         // Mock VWAPCalculator

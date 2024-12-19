@@ -9,6 +9,8 @@ public class VWAPCalculatorService {
     private final TradeResourceManager tradeResourceManager;
     private byte nbrThreads = 4;
     
+    private int tradesToBeSentToResourceManager = 0;
+    
     private long minutesForVWAP;
 
     public VWAPCalculatorService(TradeGenerator tradeGenerator, long minutesForVWAP, int tradeThresholdPerPair, int totalTradeThreshold) {
@@ -31,17 +33,32 @@ public class VWAPCalculatorService {
     }
 
     // Simulate receiving a price update from TradeGenerator
-    public void simulateTradeUpdate(boolean manageResourceFlag) {
+    public String simulateTradeUpdate(boolean manageResourceFlag) {
         // Generate a random trade using the TradeGenerator
         Trade trade = tradeGenerator.generateRandomTrade();
+        tradesToBeSentToResourceManager++;
 
         // Process the trade using the VWAPCalculator
-        vwapCalculator.processData(trade);
+        int tradesTrimmed = vwapCalculator.processData(trade);
+        tradesToBeSentToResourceManager -= tradesTrimmed;
         
         // When the flag is set to true, also trigger the resource manager
+        String currencyPair;
         if (manageResourceFlag) {
-        	tradeResourceManager.manageResources(minutesForVWAP);
+        	// First adjust the number of trades accumulated since the last manage resources call
+        	System.out.println("Trades to be sent to mgr: " + tradesToBeSentToResourceManager);
+        	tradeResourceManager.adjustTradesInPastHour(tradesToBeSentToResourceManager);
+        	
+        	// Now with adjusted trade figures, manage the DB write/restore/diagnostics
+        	currencyPair = tradeResourceManager.manageResources(minutesForVWAP);
+        	
+        	// Reset the trades accumulator back to 0        	
+        	tradesToBeSentToResourceManager = 0;        	
+        } else {
+        	currencyPair = trade.getCurrencyPair();
         }
+        
+        return currencyPair;
     }
 
     // Get the VWAP for a specific currency pair
@@ -51,5 +68,13 @@ public class VWAPCalculatorService {
     
     public void shutdown(VWAPCalculator vwapCalculator) {
     	vwapCalculator.shutdown();
+    }
+    
+    public int getTradeThresholdPerPair() {
+    	return tradeResourceManager.getTradeThresholdPerPair();
+    }
+    
+    public long getRestoreFrequency() {
+    	return tradeResourceManager.getRestoreFrequency();
     }
 }

@@ -9,6 +9,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 class VWAPCalculatorServiceTest {
@@ -93,7 +95,7 @@ class VWAPCalculatorServiceTest {
     void testSimulateTradesWithOldDataPointTrimming() {
         // Arrange: Create 3 trades where the first trade is older than 1 hour
         LocalDateTime now = LocalDateTime.now();
-        Trade oldTrade = new Trade(0.760, 1000, now.minusMinutes(61), "AUD/USD");
+        Trade oldTrade = new Trade(0.760, 1000, now.minusMinutes(65), "AUD/USD");
         Trade trade2 = new Trade(0.770, 2000, now, "AUD/USD"); 
         Trade trade3 = new Trade(0.780, 3000, now, "AUD/USD");
 
@@ -121,6 +123,35 @@ class VWAPCalculatorServiceTest {
 
         // Assert: Validate the calculated VWAP
         assertEquals(expectedVWAP, actualVWAP, 0.0001);
+    }
+    
+    @Test
+    public void testSimulateTradeUpdateReturnsCurrencyPair() {    	
+    	LocalDateTime now = LocalDateTime.now();
+        Trade trade1 = new Trade(0.760, 1000, now.minusMinutes(5), "AUD/USD");
+        Trade trade2 = new Trade(105, 2000, now.minusMinutes(1), "USD/JPY"); 
+        Trade trade3 = new Trade(0.780, 3000, now, "AUD/USD");
+
+        List<Trade> mockTrades = Arrays.asList(trade1, trade2, trade3);
+
+        // Mock the behavior of generateRandomTrade() to return trades in sequence
+        when(mockTradeGenerator.generateRandomTrade())
+            .thenReturn(mockTrades.get(0)) 
+            .thenReturn(mockTrades.get(1))  
+            .thenReturn(mockTrades.get(2));
+    	
+        // Arrange
+        boolean manageResourceFlag = false;
+
+        // Act
+        String currencyPair1 = vwapCalculatorService.simulateTradeUpdate(manageResourceFlag);
+        String currencyPair2 = vwapCalculatorService.simulateTradeUpdate(manageResourceFlag);
+        String currencyPair3 = vwapCalculatorService.simulateTradeUpdate(manageResourceFlag);
+
+        // Assert
+        assertEquals("AUD/USD", currencyPair1);
+        assertEquals("USD/JPY", currencyPair2);
+        assertEquals("AUD/USD", currencyPair3);
     }
     
     

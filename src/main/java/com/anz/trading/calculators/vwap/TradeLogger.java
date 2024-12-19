@@ -107,13 +107,15 @@ public class TradeLogger {
     /**
      * ONLY to be used as a last resort when memory is close to completely full
      */
-    public void emergencyDumpToDB(VWAPCalculator vwapCalculator) {
+    public int emergencyDumpToDB(VWAPCalculator vwapCalculator) {
+    	int tradesThatWereDumped = 0;
 		Map<String, VWAPData> dataMap = vwapCalculator.getDataMap();
 	    Queue<Trade> snapshot;
 	    Queue<Trade> combinedQueue = new ConcurrentLinkedDeque<Trade>();
 	    
 	    for (Map.Entry<String, VWAPData> entry : dataMap.entrySet()) {
 	        VWAPData vwapData = entry.getValue();
+	        tradesThatWereDumped += vwapData.getNewestQueueSize();
 	        snapshot = vwapData.getNewestQueueAndClear();
 	        combinedQueue.addAll(snapshot);
 	    }    
@@ -124,6 +126,8 @@ public class TradeLogger {
 	    } catch (SQLException e) {
 	        throw new RuntimeException("Failed to dump data to persistent DB", e);
 	    }    	
+	    
+	    return tradesThatWereDumped;
     }
        
 

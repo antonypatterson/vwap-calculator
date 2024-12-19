@@ -7,6 +7,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class VWAPCalculator {
 
@@ -22,14 +23,15 @@ public class VWAPCalculator {
     }
 
     // Process incoming data
-    public void processData(Trade trade) {
+    public int processData(Trade trade) {
+    	AtomicInteger nbrTradesTrimmed = new AtomicInteger(0);
     	String currencyPair = trade.getCurrencyPair();
     	CompletableFuture<Void> taskFuture = new CompletableFuture<>();
     	// Submit the task of adding data point to the executor
     	executorService.submit(() -> {
             try {
                 VWAPData vwapData = dataMap.computeIfAbsent(currencyPair, k -> new VWAPData(minutesForVWAP));
-                vwapData.addDataPoint(trade);
+                nbrTradesTrimmed.set(vwapData.addDataPoint(trade));
             } finally {
                 // Mark this task as completed
                 taskFuture.complete(null);
@@ -42,6 +44,8 @@ public class VWAPCalculator {
             taskFuture,
             (existingFuture, newFuture) -> existingFuture.thenCombine(newFuture, (a, b) -> null)
         );
+        
+        return nbrTradesTrimmed.get();
     }
     
     // Used to test the cases where the executor isn't working as expected
