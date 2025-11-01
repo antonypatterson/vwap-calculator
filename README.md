@@ -1,1 +1,3 @@
 # vwap-calculator
+
+A repository created to demonstrate calculating the volume weighted average price over a given time period (e.g. 1 hour) of a chosen currency pair in high frequency trading situations. In order to acheive this on a localised machine, the application must be able to efficienctly store old trade data, then re-load that same data in the chosen 1 hour timeframe for the calcualtion. The calculations taking place to update the VWAP must be done in-memory. There is a resource manager that determines the rate of trades logged and dynamically adjusts the frequency of database storing according to this frequency.
